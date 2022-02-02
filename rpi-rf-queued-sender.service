@@ -1,0 +1,13 @@
+[Unit]
+Description=rpi-rf queued sender
+After=network.target auditd.service
+
+[Service]
+Type=exec
+ExecStart=/var/lib/openhab/rpi-rf-venv/bin/rpi-rf-queued-sender.py
+RestartSec=500ms
+Restart=always
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target
