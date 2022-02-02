@@ -2,8 +2,9 @@
 
 This project is a Flask service that binds to localhost and enqueues requests
 to send codes via rpi-rf to specified GPIO pins. It uses
-[ZeroMQ](https://zeromq.org) internally to enqueue and dequeue messages and
-runs two processes, one to receive requests and the other to execute them.
+[multiprocessing.Queue](https://docs.python.org/3/library/multiprocessing.html#multiprocessing.Queue)
+internally to enqueue and dequeue messages and runs two processes, one to
+receive requests and the other to execute them.
 
 This is intended to be used in conjunction with OpenHAB rules that use HTTP
 to send requests for rpi-rf.
