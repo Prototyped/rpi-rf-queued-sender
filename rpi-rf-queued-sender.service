@@ -8,6 +8,9 @@ ExecStart=/var/lib/openhab/rpi-rf-venv/bin/rpi-rf-queued-sender.py
 RestartSec=500ms
 Restart=always
 KillMode=control-group
+User=openhab
+Group=openhab
+WorkingDirectory=/var/lib/openhab/rpi-rf-venv
 
 [Install]
 WantedBy=multi-user.target
