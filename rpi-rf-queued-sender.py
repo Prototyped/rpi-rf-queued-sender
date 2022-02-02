@@ -1,13 +1,13 @@
 #!/usr/bin/python3
 from collections.abc import Callable
 from flask import Flask, Request, Response, request, jsonify
+from functools import partial
 import json
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 from rpi_rf import RFDevice
-import zmq
-from zmq.sugar.context import Socket
+import time
 
 
 class Sender:
@@ -26,11 +26,12 @@ class Sender:
 
         print(f'Sending code {code} to GPIO pin {gpio}')
         self.rfdevices[gpio].tx_code(code)
-        print(f'Sent code {code} to GPIO pin {gpio}')
+        print(f'Sent code {code} to GPIO pin {gpio}. Sleeping a bit.')
+        time.sleep(0.5)
 
     @classmethod
     def _create_rfdevice(cls, gpio) -> RFDevice:
-        return RFDevice(gpio, tx_repeat=200)
+        return RFDevice(gpio, tx_repeat=50)
 
 
 class RequestHandler:
@@ -53,8 +54,8 @@ class RequestHandler:
         'required': ['gpioPin', 'code'],
     }
 
-    def __init__(self, socket: Socket=None, port: int=PORT):
-        self.socket = socket if socket else self._create_zmq_socket(port)
+    def __init__(self, queue: Queue):
+        self.queue = queue
         self.validator = Draft202012Validator(schema=self.SCHEMA)
 
     def handle(self, request: Request) -> Response:
@@ -64,29 +65,17 @@ class RequestHandler:
         except ValidationError as exc:
             return f'Request validation failed: {exc.message}', 400
 
-        self.socket.send(request.data)
+        self.queue.put(shape)
         return jsonify({})
 
-    @classmethod
-    def _create_zmq_socket(cls, port: int) -> Socket:
-        context = zmq.Context()
-        socket = context.socket(zmq.DEALER)
-        socket.connect(f'tcp://127.0.0.1:{port}')
-        return socket
 
-
-def dequeue_and_send(port: int=RequestHandler.PORT) -> None:
-    context = zmq.Context()
-    socket = context.socket(zmq.ROUTER)
-    print(f'Binding listening socket to tcp://127.0.0.1:{port}')
-    socket.bind(f'tcp://127.0.0.1:{port}')
+def dequeue_and_send(queue: Queue) -> None:
     sender = Sender()
 
     while True:
         try:
-            message = socket.recv()
-            content = json.loads(message.decode('UTF-8'))
-            sender.send(content['gpioPin'], content['code'])
+            message = queue.get()
+            sender.send(message['gpioPin'], message['code'])
             print(f'Enqueued message {message}')
         except UnicodeDecodeError as exc:
             print(f'Failed to decode message {message}: {exc}')
@@ -95,8 +84,10 @@ def dequeue_and_send(port: int=RequestHandler.PORT) -> None:
 
 
 def main() -> None:
-    handler = RequestHandler()
-    process = Process(target=dequeue_and_send)
+    queue = Queue()
+    handler = RequestHandler(queue)
+    process = Process(target=partial(dequeue_and_send, queue))
+    process.daemon = True
     process.start()
 
     app = Flask(__name__)

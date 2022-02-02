@@ -5,7 +5,6 @@ requires = [
     "Flask~=2.0.2",
     "jsonschema~=4.4.0",
     "rpi-rf~=0.9.7",
-    "pyzmq~=22.3.0",
 ]
 
 build-backend = "setuptools.build_meta"
